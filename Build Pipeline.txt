@@ -1,0 +1,44 @@
+pipeline {
+ agent {
+   kubernetes {
+     label 'maven'
+     defaultContainer 'kaniko'
+   }
+ }
+ stages {
+    stage('gitcheckout') {
+      steps {
+        script {
+            checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[credentialsId: 'git-access', url: 'https://github.com/madhavik27/java-springboot.git']])
+        }
+      }
+    }
+    stage('readversion') {
+      steps {
+        script {
+          pom = readMavenPom file: 'pom.xml'
+          image_version = pom.version
+          println "my pom version is ${image_version}"
+        }
+      }
+    }
+    stage("build&pushimage") {
+        environment {
+          PATH = "/busybox:$PATH"
+          REGISTRY = 'index.docker.io' 
+          REPOSITORY = 'madhuk4'
+          IMAGE = 'kaniko-repo'
+          TAG = "${image_version}"
+        } 
+        steps {
+         script {
+            sh """
+            /kaniko/executor -f `pwd`/Dockerfile -c `pwd` --cache=true --destination=${REGISTRY}/${REPOSITORY}/${IMAGE}:${TAG}
+            """
+         }
+       }
+     }
+   }
+ }
+
+
