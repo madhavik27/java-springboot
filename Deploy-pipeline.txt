@@ -1,0 +1,50 @@
+def imageName = "madhuk4/kaniko-repo"
+def deployment = "javaapp"
+def namespace = "javaapp"
+def containerName = "javaapp"
+
+pipeline {
+  agent {
+    kubernetes {
+      cloud 'Kubernetes'
+      defaultContainer 'kubectl'
+      label 'maven'
+    }
+  }
+  parameters {
+  string defaultValue: '0.0.0', name: 'VERSION', trim: true
+  choice choices: ['dev', 'prod'], name: 'ENV'
+  }
+  stages {
+    stage('printing inputs') {
+      steps {
+        script {
+          println "env is ${params.ENV},version selected is ${params.VERSION}" 
+          println "Selected namespace is ${namespace} - ${params.ENV}"
+        }
+      }
+    }
+    stage('Patch deployment') {
+      steps {
+        script {
+           withKubeConfig(credentialsId: 'k8s-access',serverUrl: 'https://172.31.85.76:6443') {
+           sh """
+           kubectl set image deployment/${deployment} ${containerName}="${imageName}:${version}" -n ${namespace}-${params.ENV}
+           """
+           }
+         }
+      }
+    }
+    stage('Restart deployment') {
+      steps {
+         script {
+            withKubeConfig([credentialsId: 'k8s-access',serverUrl: 'https://172.31.85.76:6443']) {
+            sh """
+            kubectl rollout restart deploy ${deployment} -n ${namespace}-${params.ENV}
+            """
+           }
+         }
+       }
+     } 
+   } 
+}
